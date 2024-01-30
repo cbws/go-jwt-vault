@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+
 	"github.com/dgrijalva/jwt-go"
 	vault "github.com/hashicorp/vault/api"
 )
@@ -19,10 +20,10 @@ var (
 )
 
 type VaultConfig struct {
-	KeyPath string
-	KeyName string
+	KeyPath    string
+	KeyName    string
 	KeyVersion int
-	Client *vault.Client
+	Client     *vault.Client
 }
 
 type vaultConfigKey struct{}
@@ -112,7 +113,7 @@ func (s SigningMethodVaultTransit) Sign(signingString string, key interface{}) (
 		return "", fmt.Errorf("unknown hasher %T", s.hasher)
 	}
 
-	_, signature, err := signVault(*config, config.Client, hashType, digest.Sum(nil))
+	_, signature, err := signVault(ctx, *config, config.Client, hashType, digest.Sum(nil))
 	if err != nil {
 		return "", fmt.Errorf("could not sign using Vault: %+v", err)
 	}
@@ -158,7 +159,7 @@ func (s SigningMethodVaultTransit) Verify(signingString, signature string, key i
 		return err
 	}
 
-	valid, err := verifyVault(*config, config.Client, hashType, sig, digest.Sum(nil))
+	valid, err := verifyVault(ctx, *config, config.Client, hashType, sig, digest.Sum(nil))
 	if err != nil {
 		return err
 	}
