@@ -10,7 +10,7 @@ package main
 import (
 	"context"
 	"github.com/cbws/go-jwt-vault"
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt"
 	vault "github.com/hashicorp/vault/api"
 	"log"
 )

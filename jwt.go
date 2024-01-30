@@ -5,7 +5,8 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
-	"github.com/dgrijalva/jwt-go"
+
+	"github.com/golang-jwt/jwt/v5"
 	vault "github.com/hashicorp/vault/api"
 )
 
@@ -19,10 +20,10 @@ var (
 )
 
 type VaultConfig struct {
-	KeyPath string
-	KeyName string
+	KeyPath    string
+	KeyName    string
 	KeyVersion int
-	Client *vault.Client
+	Client     *vault.Client
 }
 
 type vaultConfigKey struct{}
@@ -74,7 +75,7 @@ type SigningMethodVaultTransit struct {
 	hasher   crypto.Hash
 }
 
-func (s SigningMethodVaultTransit) Sign(signingString string, key interface{}) (string, error) {
+func (s SigningMethodVaultTransit) Sign(signingString string, key interface{}) ([]byte, error) {
 	var ctx context.Context
 
 	// check to make sure the key is a context.Context
@@ -82,22 +83,22 @@ func (s SigningMethodVaultTransit) Sign(signingString string, key interface{}) (
 	case context.Context:
 		ctx = k
 	default:
-		return "", jwt.ErrInvalidKey
+		return nil, jwt.ErrInvalidKey
 	}
 
 	config, ok := VaultFromContext(ctx)
 	if !ok {
-		return "", ErrMissingConfig
+		return nil, ErrMissingConfig
 	}
 
 	if !s.hasher.Available() {
-		return "", jwt.ErrHashUnavailable
+		return nil, jwt.ErrHashUnavailable
 	}
 
 	digest := s.hasher.New()
 	_, err := digest.Write([]byte(signingString))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	var hashType string
@@ -109,18 +110,18 @@ func (s SigningMethodVaultTransit) Sign(signingString string, key interface{}) (
 	case crypto.SHA512:
 		hashType = "sha2-512"
 	default:
-		return "", fmt.Errorf("unknown hasher %T", s.hasher)
+		return nil, fmt.Errorf("unknown hasher %T", s.hasher)
 	}
 
 	_, signature, err := signVault(*config, config.Client, hashType, digest.Sum(nil))
 	if err != nil {
-		return "", fmt.Errorf("could not sign using Vault: %+v", err)
+		return nil, fmt.Errorf("could not sign using Vault: %+v", err)
 	}
 
-	return jwt.EncodeSegment(signature), nil
+	return signature, nil
 }
 
-func (s SigningMethodVaultTransit) Verify(signingString, signature string, key interface{}) error {
+func (s SigningMethodVaultTransit) Verify(signingString string, signature []byte, key interface{}) error {
 	var ctx context.Context
 
 	switch k := key.(type) {
@@ -153,12 +154,7 @@ func (s SigningMethodVaultTransit) Verify(signingString, signature string, key i
 		return fmt.Errorf("unknown hasher %T", s.hasher)
 	}
 
-	var sig []byte
-	if sig, err = jwt.DecodeSegment(signature); err != nil {
-		return err
-	}
-
-	valid, err := verifyVault(*config, config.Client, hashType, sig, digest.Sum(nil))
+	valid, err := verifyVault(*config, config.Client, hashType, signature, digest.Sum(nil))
 	if err != nil {
 		return err
 	}
